@@ -23,14 +23,14 @@ class MyUserManager(UserManager):
     which requires username field.
     """
 
-    def create_user(self, email, password=None, **kwargs):
-        user = self.model(email=email, **kwargs)
+    def create_user(self, username, email, password=None, **kwargs):
+        user = self.model(username=username, email=email, **kwargs)
         user.set_password(password)
         user.save()
         return user
 
-    def create_superuser(self, email, password, **kwargs):
-        user = self.model(email=email, is_staff=True, is_superuser=True, **kwargs)
+    def create_superuser(self, username, email, password, **kwargs):
+        user = self.model(username=username, email=email, is_staff=True, is_superuser=True, **kwargs)
         user.set_password(password)
         user.save()
         return user
@@ -49,7 +49,7 @@ class DemoUser(AbstractBaseUser, PermissionsMixin):
 
     Remember to change ``AUTH_USER_MODEL`` in ``settings.py``.
     """
-
+    username = models.CharField(_('username'), max_length=40, blank=False, unique=True)
     email = models.EmailField(_('email address'), blank=False, unique=True)
     first_name = models.CharField(_('first name'), max_length=40, blank=True, null=True, unique=False)
     last_name = models.CharField(_('last name'), max_length=40, blank=True, null=True, unique=False)
@@ -64,8 +64,8 @@ class DemoUser(AbstractBaseUser, PermissionsMixin):
 
     objects = MyUserManager()
 
-    USERNAME_FIELD = 'email'
-    REQUIRED_FIELDS = []
+    USERNAME_FIELD = 'username'
+    REQUIRED_FIELDS = ['email']
 
     class Meta:
         verbose_name = _('user')
@@ -138,7 +138,6 @@ class UserProfile(models.Model):
     # b) in this UserProfile model
     # c) in a table of it's own to track multiple pictures, with the
     #    "current" avatar as a foreign key in User or UserProfile.
-    avatar_url = models.CharField(max_length=256, blank=True, null=True)
 
     dob=models.DateField(verbose_name="dob", blank=True, null=True)
 
@@ -150,16 +149,16 @@ class UserProfile(models.Model):
 
 
 @receiver(user_signed_up)
-def set_initial_user_names(request, user, sociallogin=None, **kwargs):
+def set_initial_user_names(request, user, **kwargs):
     """
     When a social account is created successfully and this signal is received,
     django-allauth passes in the sociallogin param, giving access to metadata on the remote account, e.g.:
- 
-    sociallogin.account.provider  # e.g. 'twitter' 
+
+    sociallogin.account.provider  # e.g. 'twitter'
     sociallogin.account.get_avatar_url()
     sociallogin.account.get_profile_url()
     sociallogin.account.extra_data['screen_name']
- 
+
     See the socialaccount_socialaccount table for more in the 'extra_data' field.
 
     From http://birdhouse.org/blog/2013/12/03/django-allauth-retrieve-firstlast-names-from-fb-twitter-google/comment-page-1/
@@ -171,28 +170,8 @@ def set_initial_user_names(request, user, sociallogin=None, **kwargs):
         hashlib.md5(user.email.encode('UTF-8')).hexdigest(),
         preferred_avatar_size_pixels
     )
- 
-    if sociallogin:
-        # Extract first / last names from social nets and store on User record
-        if sociallogin.account.provider == 'twitter':
-            name = sociallogin.account.extra_data['name']
-            user.first_name = name.split()[0]
-            user.last_name = name.split()[1]
- 
-        if sociallogin.account.provider == 'facebook':
-            user.first_name = sociallogin.account.extra_data['first_name']
-            user.last_name = sociallogin.account.extra_data['last_name']
-            #verified = sociallogin.account.extra_data['verified']
-            picture_url = "http://graph.facebook.com/{0}/picture?width={1}&height={1}".format(
-                sociallogin.account.uid, preferred_avatar_size_pixels)
- 
-        if sociallogin.account.provider == 'google':
-            user.first_name = sociallogin.account.extra_data['given_name']
-            user.last_name = sociallogin.account.extra_data['family_name']
-            #verified = sociallogin.account.extra_data['verified_email']
-            picture_url = sociallogin.account.extra_data['picture']
- 
-    profile = UserProfile(user=user, avatar_url=picture_url)
+
+    profile = UserProfile(user=user)
     profile.save()
 
     user.guess_display_name()
